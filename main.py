@@ -28,23 +28,23 @@ def get_args_parser():
     parser = argparse.ArgumentParser('SiT training and evaluation script', add_help=False)
     parser.add_argument('--batch-size', default=72, type=int)
     parser.add_argument('--epochs', default=501, type=int)
-
+    
     # Model parameters
     parser.add_argument('--model', default='SiT_base_patch16_224', type=str, metavar='MODEL',
                         help='Name of model to train')
     parser.add_argument('--input-size', default=224, type=int, help='images input size')
-
+    
     parser.add_argument('--drop', type=float, default=0.0, metavar='PCT',
                         help='Dropout rate (default: 0.)')
     parser.add_argument('--drop-path', type=float, default=0.1, metavar='PCT',
                         help='Drop path rate (default: 0.1)')
-
+    
     parser.add_argument('--model-ema', action='store_true')
     parser.add_argument('--no-model-ema', action='store_false', dest='model_ema')
     parser.set_defaults(model_ema=True)
     parser.add_argument('--model-ema-decay', type=float, default=0.99996, help='')
     parser.add_argument('--model-ema-force-cpu', action='store_true', default=False, help='')
-
+    
     # Optimizer parameters
     parser.add_argument('--opt', default='adamw', type=str, metavar='OPTIMIZER',
                         help='Optimizer (default: "adamw"')
@@ -62,7 +62,7 @@ def get_args_parser():
     # Learning rate schedule parameters
     parser.add_argument('--sched', default='cosine', type=str, metavar='SCHEDULER',
                         help='LR scheduler (default: "cosine"')
-    parser.add_argument('--lr', type=float, default=5e-4, metavar='LR',
+    parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate (default: 5e-4)')
     parser.add_argument('--lr-noise', type=float, nargs='+', default=None, metavar='pct, pct',
                         help='learning rate noise on/off epoch percentages')
@@ -72,9 +72,9 @@ def get_args_parser():
                         help='learning rate noise std-dev (default: 1.0)')
     parser.add_argument('--warmup-lr', type=float, default=1e-6, metavar='LR',
                         help='warmup learning rate (default: 1e-6)')
-    parser.add_argument('--min-lr', type=float, default=1e-5, metavar='LR',
+    parser.add_argument('--min-lr', type=float, default=5e-6, metavar='LR',
                         help='lower lr bound for cyclic schedulers that hit 0 (1e-5)')
-
+    
     parser.add_argument('--decay-epochs', type=float, default=30, metavar='N',
                         help='epoch interval to decay LR')
     parser.add_argument('--warmup-epochs', type=int, default=5, metavar='N',
@@ -85,7 +85,7 @@ def get_args_parser():
                         help='patience epochs for Plateau LR scheduler (default: 10')
     parser.add_argument('--decay-rate', '--dr', type=float, default=0.1, metavar='RATE',
                         help='LR decay rate (default: 0.1)')
-
+    
     # Augmentation parameters
     parser.add_argument('--color-jitter', type=float, default=0.4, metavar='PCT',
                         help='Color jitter factor (default: 0.4)')
@@ -95,11 +95,11 @@ def get_args_parser():
     parser.add_argument('--smoothing', type=float, default=0.1, help='Label smoothing (default: 0.1)')
     parser.add_argument('--train-interpolation', type=str, default='bicubic',
                         help='Training interpolation (random, bilinear, bicubic default: "bicubic")')
-
+    
     parser.add_argument('--repeated-aug', action='store_true')
     parser.add_argument('--no-repeated-aug', action='store_false', dest='repeated_aug')
     parser.set_defaults(repeated_aug=True)
-
+    
     # * Random Erase params
     parser.add_argument('--reprob', type=float, default=0.25, metavar='PCT',
                         help='Random erase prob (default: 0.25)')
@@ -109,7 +109,7 @@ def get_args_parser():
                         help='Random erase count (default: 1)')
     parser.add_argument('--resplit', action='store_true', default=False,
                         help='Do not random erase first (clean) augmentation split')
-
+    
     # * Mixup params
     parser.add_argument('--mixup', type=float, default=0.8,
                         help='mixup alpha, mixup enabled if > 0. (default: 0.8)')
@@ -123,25 +123,25 @@ def get_args_parser():
                         help='Probability of switching to cutmix when both mixup and cutmix enabled')
     parser.add_argument('--mixup-mode', type=str, default='batch',
                         help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"')
-
+    
     # * Finetuning params
     parser.add_argument('--finetune', default='', help='finetune from checkpoint')
-
+    
     # Dataset parameters
     parser.add_argument('--data-set', default='CIFAR10', choices=['CIFAR100', 'CIFAR10', 'STL10', 'TinyImageNet'],
-                        type=str, help='dataset name')    
-    parser.add_argument('--dataset_location', default='downloaded_datasets', type=str, 
-                        help='dataset location - dataset will be downloaded to this folder')   
+                        type=str, help='dataset name')
+    parser.add_argument('--dataset_location', default='downloaded_datasets', type=str,
+                        help='dataset location - dataset will be downloaded to this folder')
     
     parser.add_argument('--num_imgs_per_cat', default=None, type=int, help='Number of images per training category')
     parser.add_argument('--SiT_LinearEvaluation', default=0, type=int, help='If true, the backbone of the system will be freezed')
     parser.add_argument('--representation-size', default=None, type=int, help='nonLinear head')
-
+    
     ## if training-mode is SSL, self-supervised training, else, finetune
     parser.add_argument('--training-mode', default='SSL', choices=['SSL', 'finetune'],
-                        type=str, help='training mode')  
-    parser.add_argument('--validate-every', default=1, type=int, help='validate and save the checkpoints every n epochs')  
-
+                        type=str, help='training mode')
+    parser.add_argument('--validate-every', default=1, type=int, help='validate and save the checkpoints every n epochs')
+    
     parser.add_argument('--output_dir', default='',
                         help='path where to save, empty for no saving')
     parser.add_argument('--device', default='cuda',
@@ -158,13 +158,12 @@ def get_args_parser():
     parser.add_argument('--no-pin-mem', action='store_false', dest='pin_mem',
                         help='')
     parser.set_defaults(pin_mem=True)
-
+    
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
                         help='number of distributed processes')
     parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
     return parser
-
 
 
 def collate_fn(batch):
@@ -176,32 +175,32 @@ def requires_grad(model, flag=True):
     for p in model.parameters():
         p.requires_grad = flag
 
+
 def main(args):
     utils.init_distributed_mode(args)
-
+    
     # disable any harsh augmentation in case of Self-supervise training
     if args.training_mode == 'SSL':
         print("NOTE: Smoothing, Mixup, CutMix, and AutoAugment will be disabled in case of Self-supervise training")
         args.smoothing = args.reprob = args.reprob = args.recount = args.mixup = args.cutmix = 0.0
         args.aa = ''
-
+        
         if args.SiT_LinearEvaluation == 1:
             print("Warning: Linear Evaluation should be set to 0 during SSL training - changing SiT_LinearEvaluation to 0")
             args.SiT_LinearEvaluation = 0
-        
+    
     utils.print_args(args)
-
+    
     device = torch.device(args.device)
     seed = args.seed + utils.get_rank()
     torch.manual_seed(seed)
     np.random.seed(seed)
     cudnn.benchmark = True
-
+    
     print("Loading dataset ....")
-    dataset_train, args.nb_classes = build_dataset(is_train=True, args=args)   
+    dataset_train, args.nb_classes = build_dataset(is_train=True, args=args)
     dataset_val, _ = build_dataset(is_train=False, args=args)
     
-
     num_tasks = utils.get_world_size()
     global_rank = utils.get_rank()
     if args.repeated_aug:
@@ -210,16 +209,15 @@ def main(args):
         sampler_train = torch.utils.data.DistributedSampler(dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True)
     
     sampler_val = torch.utils.data.SequentialSampler(dataset_val)
-
-
+    
     data_loader_train = torch.utils.data.DataLoader(dataset_train, sampler=sampler_train,
-        batch_size=args.batch_size, num_workers=args.num_workers,
-        pin_memory=args.pin_mem, drop_last=True, collate_fn=collate_fn)
-
+                                                    batch_size=args.batch_size, num_workers=args.num_workers,
+                                                    pin_memory=args.pin_mem, drop_last=True, collate_fn=collate_fn)
+    
     data_loader_val = torch.utils.data.DataLoader(dataset_val, sampler=sampler_val,
-        batch_size=int(1.5 * args.batch_size), num_workers=args.num_workers,
-        pin_memory=args.pin_mem, drop_last=False, collate_fn=collate_fn)
-
+                                                  batch_size=int(1.5 * args.batch_size), num_workers=args.num_workers,
+                                                  pin_memory=args.pin_mem, drop_last=False, collate_fn=collate_fn)
+    
     mixup_fn = None
     mixup_active = args.mixup > 0 or args.cutmix > 0. or args.cutmix_minmax is not None
     if mixup_active:
@@ -227,23 +225,23 @@ def main(args):
             mixup_alpha=args.mixup, cutmix_alpha=args.cutmix, cutmix_minmax=args.cutmix_minmax,
             prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, mode=args.mixup_mode,
             label_smoothing=args.smoothing, num_classes=args.nb_classes)
-
+    
     print(f"Creating model: {args.model}")
     model = create_model(
         args.model, pretrained=False, num_classes=args.nb_classes,
         drop_rate=args.drop, drop_path_rate=args.drop_path, representation_size=args.representation_size,
         drop_block_rate=None, training_mode=args.training_mode)
-
+    
     if args.finetune:
         checkpoint = torch.load(args.finetune, map_location='cpu')
-
+        
         checkpoint_model = checkpoint['model']
         state_dict = model.state_dict()
         for k in ['rot_head.weight', 'rot_head.bias', 'contrastive_head.weight', 'contrastive_head.bias']:
             if k in checkpoint_model and checkpoint_model[k].shape != state_dict[k].shape:
                 print(f"Removing key {k} from pretrained checkpoint")
                 del checkpoint_model[k]
-
+        
         # interpolate position embedding
         pos_embed_checkpoint = checkpoint_model['pos_embed']
         embedding_size = pos_embed_checkpoint.shape[-1]
@@ -259,11 +257,11 @@ def main(args):
         pos_tokens = pos_tokens.permute(0, 2, 3, 1).flatten(1, 2)
         new_pos_embed = torch.cat((extra_tokens, pos_tokens), dim=1)
         checkpoint_model['pos_embed'] = new_pos_embed
-
+        
         model.load_state_dict(checkpoint_model, strict=False)
-
+    
     model.to(device)
-
+    
     # Freeze the backbone in case of linear evaluation
     if args.SiT_LinearEvaluation == 1:
         requires_grad(model, False)
@@ -279,38 +277,35 @@ def main(args):
             model.pre_logits_rot.fc.bias.requires_grad = True
             
             model.pre_logits_contrastive.fc.weight.requires_grad = True
-            model.pre_logits_contrastive.fc.bias.requires_grad = True            
-
-
+            model.pre_logits_contrastive.fc.bias.requires_grad = True
+    
     model_ema = None
     if args.model_ema:
         model_ema = ModelEma(model, decay=args.model_ema_decay,
-            device='cpu' if args.model_ema_force_cpu else '', resume='')
-
+                             device='cpu' if args.model_ema_force_cpu else '', resume='')
+    
     model_without_ddp = model
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
         model_without_ddp = model.module
-        
+    
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of params:', n_parameters)
-
+    
     linear_scaled_lr = args.lr * args.batch_size * utils.get_world_size() / 512.0
     args.lr = linear_scaled_lr
     optimizer = create_optimizer(args, model_without_ddp)
     loss_scaler = NativeScaler()
-
+    
     lr_scheduler, _ = create_scheduler(args, optimizer)
-
+    
     if args.training_mode == 'SSL':
         criterion = MTL_loss(args.device, args.batch_size)
     elif args.training_mode == 'finetune' and args.mixup > 0.:
         criterion = SoftTargetCrossEntropy()
     else:
         criterion = torch.nn.CrossEntropyLoss()
-
-
-
+    
     output_dir = Path(args.output_dir)
     if args.resume:
         checkpoint = torch.load(args.resume, map_location='cpu')
@@ -323,19 +318,19 @@ def main(args):
                 utils._load_checkpoint_for_ema(model_ema, checkpoint['model_ema'])
             if 'scaler' in checkpoint:
                 loss_scaler.load_state_dict(checkpoint['scaler'])
-
+    
     if args.eval:
         test_stats = evaluate_SSL(data_loader_val, model, device)
         print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
         return
-
+    
     print(f"Start training for {args.epochs} epochs")
     start_time = time.time()
     max_accuracy = 0.0
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             data_loader_train.sampler.set_epoch(epoch)
-
+        
         if args.training_mode == 'SSL':
             train_stats = train_SSL(
                 model, criterion, data_loader_train, optimizer, device, epoch, loss_scaler,
@@ -344,10 +339,10 @@ def main(args):
             train_stats = train_finetune(
                 model, criterion, data_loader_train, optimizer, device, epoch, loss_scaler,
                 args.clip_grad, model_ema, mixup_fn)
-            
+        
         lr_scheduler.step(epoch)
-            
-        if epoch%args.validate_every == 0:
+        
+        if epoch % args.validate_every == 0:
             if args.output_dir:
                 checkpoint_paths = [output_dir / 'checkpoint.pth']
                 for checkpoint_path in checkpoint_paths:
@@ -360,25 +355,25 @@ def main(args):
                         'scaler': loss_scaler.state_dict(),
                         'args': args,
                     }, checkpoint_path)
-    
+            
             if args.training_mode == 'SSL':
                 test_stats = evaluate_SSL(data_loader_val, model, device, epoch, args.output_dir)
             else:
                 test_stats = evaluate_finetune(data_loader_val, model, device)
-
+                
                 print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
                 max_accuracy = max(max_accuracy, test_stats["acc1"])
                 print(f'Max accuracy: {max_accuracy:.2f}%')
-
+        
         log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
                      **{f'test_{k}': v for k, v in test_stats.items()},
                      'epoch': epoch,
                      'n_parameters': n_parameters}
-
+        
         if args.output_dir and utils.is_main_process():
             with (output_dir / "log.txt").open("a") as f:
                 f.write(json.dumps(log_stats) + "\n")
-
+    
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
@@ -389,8 +384,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-        
+    
     if args.dataset_location:
         Path(args.dataset_location).mkdir(parents=True, exist_ok=True)
-        
+    
     main(args)
