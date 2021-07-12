@@ -74,6 +74,7 @@ class TorchDistManager:
         if self.is_master():
             os.remove(self.temp_f_path)
             print(Fore.LIGHTBLUE_EX + f'{TorchDistManager.time_str()}[rk00] removed temp file: \'{self.temp_f_path}\'')
+        self.barrier()
 
     def finalize(self) -> None:
         print(Fore.CYAN + f'{TorchDistManager.time_str()}[dist finalize] rank[{self.rank:02d}]')

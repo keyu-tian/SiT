@@ -67,6 +67,8 @@ def create_loggers(prj_root, sh_root, exp_root, dist) -> Tuple[logging.Logger, S
     # create loggers
     exp_name = os.path.split(sh_root)[-1]
     logger = create_logger('G', os.path.join(exp_root, 'log.txt')) if dist.is_master() else None
+    if dist.is_master():
+        logger.info('=> test log.')
     seatable_logger = STLogger(exp_root, exp_name) if dist.is_master else None
     
     if dist.is_master():
