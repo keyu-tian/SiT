@@ -1,4 +1,4 @@
-REL_PATH=../../
+REL_PATH=../../../
 DIR_NAME="${PWD##*/}"
 EXP_DIR="exp-$(date "+%Y-%m%d-%H%M%S")"
 
