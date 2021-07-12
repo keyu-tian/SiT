@@ -237,6 +237,7 @@ def main(args, dist, st_lg, tb_lg):
     print(f"Creating model: {args.model}")
     model = create_model(
         args.model, pretrained=False, num_classes=args.nb_classes,
+        # todo：根据以下kw的字段，添加swin的构造器参数，尤其注意最后一层变成MLP
         drop_rate=args.drop, drop_path_rate=args.drop_path, representation_size=args.representation_size,
         drop_block_rate=None, training_mode=args.training_mode)
     
@@ -274,6 +275,7 @@ def main(args, dist, st_lg, tb_lg):
     if args.SiT_LinearEvaluation == 1:
         requires_grad(model, False)
         
+        # todo: 根据这些字段，修改swin
         model.rot_head.weight.requires_grad = True
         model.rot_head.bias.requires_grad = True
         
