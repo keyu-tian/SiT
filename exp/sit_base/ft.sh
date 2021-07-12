@@ -1,4 +1,4 @@
-REL_PATH=../../../
+REL_PATH=../../
 DIR_NAME="${PWD##*/}"
 EXP_DIR="exp-$(date "+%Y-%m%d-%H%M%S")"
 
@@ -12,14 +12,11 @@ spring.submit run -r --gpu -n$1 \
 "python -u -m main --main_py_rel_path=${REL_PATH} --exp_dirname=${EXP_DIR} \
 --batch-size 120 \
 --epochs 501 \
---lr 1e-3 \
---weight-decay 5e-4 \
+--lr 5e-4 \
 --min-lr 5e-6 \
 --training-mode 'finetune' \
 --data-set 'stl10' \
---finetune '/expxxxxx/checkpoints/SSL/STL10/checkpoint.pth' \
---SiT_LinearEvaluation 1 \
---representation-size 1024"
+--finetune '/expxxxxx/checkpoints/SSL/STL10/checkpoint.pth'"
 
 failed=$?
 echo "failed=${failed}"
