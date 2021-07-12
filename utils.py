@@ -280,13 +280,10 @@ def change_builtin_print(lg):
     """
     import builtins as __builtin__
     
-    # builtin_print = __builtin__.print
-    # def print(*args, **kwargs):
-    #     force = kwargs.pop('force', False)
-    #     if is_master or force:
-    #         builtin_print(*args, **kwargs)
+    def lg_info(*args, **kwargs):
+        lg.info(*args)
     
-    __builtin__.print = lg.info
+    __builtin__.print = lg_info
 
 
 # def is_dist_avail_and_initialized():
