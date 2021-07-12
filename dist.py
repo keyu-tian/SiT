@@ -80,7 +80,7 @@ class TorchDistManager:
         print(Fore.CYAN + f'{TorchDistManager.time_str()}[dist finalize] rank[{self.rank:02d}]')
 
     def is_master(self):
-        return self.rank == self.world_size
+        return self.rank == 0
 
     def get_world_group(self):
         return TorchDistManager.WORLD_GROUP
