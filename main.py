@@ -414,7 +414,13 @@ def dist_main():
     args.data_set = args.data_set.strip().lower()
     args.dataset_location = os.path.join(os.path.expanduser('~'), 'datasets', args.data_set)
     
-    main(args, dist, st_lg, tb_lg)
+    try:
+        main(args, dist, st_lg, tb_lg)
+    except Exception as e:
+        if dist.rank == 0:
+            raise e
+        else:
+            exit(-1)
 
 
 if __name__ == '__main__':

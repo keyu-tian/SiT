@@ -15,7 +15,7 @@ spring.submit run -r --gpu -n$1 \
 --lr 1e-3 \
 --min-lr 5e-6 \
 --training-mode 'SSL' \
---data-set 'stl10'"
+--data-set 'cifar100'"
 
 failed=$?
 echo "failed=${failed}"

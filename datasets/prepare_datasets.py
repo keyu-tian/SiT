@@ -13,7 +13,7 @@ def build_dataset(is_train, args):
     transform = build_transform(is_train, args)
 
     if args.data_set == 'cifar10':
-        dataset = CIFAR10(os.path.join(args.dataset_location),
+        dataset = CIFAR10(args.dataset_location,
                           download=True, train=is_train, transform=transform, 
                           num_imgs_per_cat=args.num_imgs_per_cat,
                           training_mode = args.training_mode)
@@ -21,7 +21,7 @@ def build_dataset(is_train, args):
 
     
     elif args.data_set == 'cifar100':
-        dataset = CIFAR100(os.path.join(args.dataset_location),
+        dataset = CIFAR100(args.dataset_location,
                            download=True, train=is_train, transform=transform, 
                            num_imgs_per_cat=args.num_imgs_per_cat,
                            training_mode = args.training_mode)
@@ -34,7 +34,7 @@ def build_dataset(is_train, args):
         split = 'train+unlabeled' if args.training_mode=='SSL' else 'train'
         split = split if is_train else 'test'
         
-        dataset = STL10(root=os.path.join(args.dataset_location),
+        dataset = STL10(root=args.dataset_location,
                         download=True, split=split, transform=transform,
                           training_mode = args.training_mode)
         nb_classes = 10
