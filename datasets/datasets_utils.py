@@ -1,5 +1,6 @@
 from PIL import Image
 import numpy as np
+import torch
 
 def RandomRotation(X, orientation=None):
     # generate random number between 0 and n_rot to represent the rotation
@@ -37,15 +38,11 @@ def getItem(X, target = None, transform=None, training_mode = 'SSL'):
             X = transform(X)
         return X, target
 
+    X1, rot1 = RandomRotation(X)
+    X2, rot2 = RandomRotation(X)
     
     if transform is not None:
-        X1 = transform(X)
-        X2 = transform(X)
-    else:
-        X1, X2 = X, X
+        X1 = transform(X1)
+        X2 = transform(X2)
         
-    X1, rot1 = RandomRotation(X1)
-    X2, rot2 = RandomRotation(X2)
-
-    
     return X1, rot1, X2, rot2

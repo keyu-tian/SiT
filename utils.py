@@ -274,16 +274,19 @@ def _load_checkpoint_for_ema(model_ema, checkpoint):
     model_ema._load_checkpoint(mem_file)
 
 
-def change_builtin_print(lg):
+def change_builtin_print(lg, is_master):
     """
     This function disables printing when not in master process
     """
     import builtins as __builtin__
     
-    def lg_info(*args, **kwargs):
-        lg.info(*args)
+    builtin_print = __builtin__.print
+    def print(*args, **kwargs):
+        force = kwargs.pop('force', False)
+        if is_master or force:
+            builtin_print(*args, **kwargs)
     
-    __builtin__.print = lg_info
+    __builtin__.print = print
 
 
 # def is_dist_avail_and_initialized():

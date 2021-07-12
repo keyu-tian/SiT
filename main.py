@@ -407,9 +407,7 @@ def dist_main():
     dist = TorchDistManager(args.exp_dirname, 'auto', 'auto')
     lg, st_lg, tb_lg = create_loggers(prj_root, sh_root, exp_root, dist)
 
-    import builtins as __builtin__
-    builtin_print = __builtin__.print
-    change_builtin_print(lg)
+    change_builtin_print(lg, dist.is_master())
     
     args.distributed = True
     args.world_size = dist.world_size
@@ -421,8 +419,6 @@ def dist_main():
         main(args, dist, st_lg, tb_lg)
     except Exception as e:
         if dist.rank == 0:
-            __builtin__.print = builtin_print
-            time.sleep(1)
             raise e
         else:
             exit(-1)
