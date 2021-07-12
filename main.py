@@ -3,6 +3,7 @@ import datetime
 import numpy as np
 import time
 import torch
+import os
 import torch.backends.cudnn as cudnn
 import json
 
@@ -16,16 +17,26 @@ from timm.optim import create_optimizer
 from timm.utils import NativeScaler, get_state_dict, ModelEma
 
 from datasets.prepare_datasets import build_dataset
+from dist import TorchDistManager
 from engine import train_SSL, evaluate_SSL, train_finetune, evaluate_finetune
+from log import create_loggers
 from losses import MTL_loss
 
 from samplers import RASampler
-import vision_transformer_SiT
+# for register
+from models import vision_transformer_SiT   # SiT_base_patch16_224
+from models import swin_transformer         # SwinT_base_patch4_224
+
 import utils
+from utils import change_builtin_print, LossOpt
 
 
 def get_args_parser():
     parser = argparse.ArgumentParser('SiT training and evaluation script', add_help=False)
+
+    parser.add_argument('--main_py_rel_path', type=str, required=True)
+    parser.add_argument('--exp_dirname', type=str, required=True)
+    
     parser.add_argument('--batch-size', default=72, type=int)
     parser.add_argument('--epochs', default=501, type=int)
     
@@ -39,6 +50,7 @@ def get_args_parser():
     parser.add_argument('--drop-path', type=float, default=0.1, metavar='PCT',
                         help='Drop path rate (default: 0.1)')
     
+    # todo: --model-ema
     parser.add_argument('--model-ema', action='store_true')
     parser.add_argument('--no-model-ema', action='store_false', dest='model_ema')
     parser.set_defaults(model_ema=True)
@@ -52,7 +64,7 @@ def get_args_parser():
                         help='Optimizer Epsilon (default: 1e-8)')
     parser.add_argument('--opt-betas', default=None, type=float, nargs='+', metavar='BETA',
                         help='Optimizer Betas (default: None, use opt default)')
-    parser.add_argument('--clip-grad', type=float, default=None, metavar='NORM',
+    parser.add_argument('--clip-grad', type=float, default=4, metavar='NORM',
                         help='Clip gradient norm (default: None, no clipping)')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                         help='SGD momentum (default: 0.9)')
@@ -62,7 +74,7 @@ def get_args_parser():
     # Learning rate schedule parameters
     parser.add_argument('--sched', default='cosine', type=str, metavar='SCHEDULER',
                         help='LR scheduler (default: "cosine"')
-    parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
+    parser.add_argument('--lr', type=float, default=5e-4, metavar='LR',
                         help='learning rate (default: 5e-4)')
     parser.add_argument('--lr-noise', type=float, nargs='+', default=None, metavar='pct, pct',
                         help='learning rate noise on/off epoch percentages')
@@ -72,7 +84,7 @@ def get_args_parser():
                         help='learning rate noise std-dev (default: 1.0)')
     parser.add_argument('--warmup-lr', type=float, default=1e-6, metavar='LR',
                         help='warmup learning rate (default: 1e-6)')
-    parser.add_argument('--min-lr', type=float, default=5e-6, metavar='LR',
+    parser.add_argument('--min-lr', type=float, default=1e-5, metavar='LR',
                         help='lower lr bound for cyclic schedulers that hit 0 (1e-5)')
     
     parser.add_argument('--decay-epochs', type=float, default=30, metavar='N',
@@ -128,7 +140,7 @@ def get_args_parser():
     parser.add_argument('--finetune', default='', help='finetune from checkpoint')
     
     # Dataset parameters
-    parser.add_argument('--data-set', default='CIFAR10', choices=['CIFAR100', 'CIFAR10', 'STL10', 'TinyImageNet'],
+    parser.add_argument('--data-set', default='stl10', choices=['cifar100', 'cifar10', 'stl10', 'tinyimagenet'],
                         type=str, help='dataset name')
     parser.add_argument('--dataset_location', default='downloaded_datasets', type=str,
                         help='dataset location - dataset will be downloaded to this folder')
@@ -152,7 +164,7 @@ def get_args_parser():
                         help='start epoch')
     parser.add_argument('--eval', action='store_true', help='Perform evaluation only')
     parser.add_argument('--dist-eval', action='store_true', default=False, help='Enabling distributed evaluation')
-    parser.add_argument('--num_workers', default=10, type=int)
+    parser.add_argument('--num_workers', default=4, type=int)
     parser.add_argument('--pin-mem', action='store_true',
                         help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
     parser.add_argument('--no-pin-mem', action='store_false', dest='pin_mem',
@@ -160,9 +172,6 @@ def get_args_parser():
     parser.set_defaults(pin_mem=True)
     
     # distributed training parameters
-    parser.add_argument('--world_size', default=1, type=int,
-                        help='number of distributed processes')
-    parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
     return parser
 
 
@@ -176,9 +185,7 @@ def requires_grad(model, flag=True):
         p.requires_grad = flag
 
 
-def main(args):
-    utils.init_distributed_mode(args)
-    
+def main(args, dist, st_lg, tb_lg):
     # disable any harsh augmentation in case of Self-supervise training
     if args.training_mode == 'SSL':
         print("NOTE: Smoothing, Mixup, CutMix, and AutoAugment will be disabled in case of Self-supervise training")
@@ -196,6 +203,7 @@ def main(args):
     torch.manual_seed(seed)
     np.random.seed(seed)
     cudnn.benchmark = True
+    cudnn.deterministic = False
     
     print("Loading dataset ....")
     dataset_train, args.nb_classes = build_dataset(is_train=True, args=args)
@@ -286,7 +294,7 @@ def main(args):
     
     model_without_ddp = model
     if args.distributed:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[dist.dev_idx], output_device=dist.dev_idx)
         model_without_ddp = model.module
     
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -295,7 +303,7 @@ def main(args):
     linear_scaled_lr = args.lr * args.batch_size * utils.get_world_size() / 512.0
     args.lr = linear_scaled_lr
     optimizer = create_optimizer(args, model_without_ddp)
-    loss_scaler = NativeScaler()
+    loss_scaler = LossOpt()
     
     lr_scheduler, _ = create_scheduler(args, optimizer)
     
@@ -318,31 +326,34 @@ def main(args):
                 utils._load_checkpoint_for_ema(model_ema, checkpoint['model_ema'])
             if 'scaler' in checkpoint:
                 loss_scaler.load_state_dict(checkpoint['scaler'])
-    
+
+    tr_iters = len(data_loader_train)
+    va_iters = len(data_loader_val)
     if args.eval:
-        test_stats = evaluate_SSL(data_loader_val, model, device)
-        print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
+        test_stats = evaluate_SSL(st_lg, tb_lg, model, data_loader_val, device, -1, tr_iters * -1, va_iters, args.output_dir)
+        print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.2f}%")
         return
     
     print(f"Start training for {args.epochs} epochs")
     start_time = time.time()
     max_accuracy = 0.0
     for epoch in range(args.start_epoch, args.epochs):
+        val_freq = args.validate_every * (1 if args.start_epoch >= args.epochs // 2 else 3)
         if args.distributed:
             data_loader_train.sampler.set_epoch(epoch)
         
         if args.training_mode == 'SSL':
             train_stats = train_SSL(
-                model, criterion, data_loader_train, optimizer, device, epoch, loss_scaler,
+                st_lg, tb_lg, model, criterion, data_loader_train, optimizer, device, epoch, args.epochs, tr_iters, loss_scaler,
                 args.clip_grad, model_ema, mixup_fn)
         else:
             train_stats = train_finetune(
-                model, criterion, data_loader_train, optimizer, device, epoch, loss_scaler,
+                st_lg, tb_lg, model, criterion, data_loader_train, optimizer, device, epoch, args.epochs, tr_iters, loss_scaler,
                 args.clip_grad, model_ema, mixup_fn)
         
         lr_scheduler.step(epoch)
         
-        if epoch % args.validate_every == 0:
+        if epoch % val_freq == 0 or epoch == args.epochs - 1:
             if args.output_dir:
                 checkpoint_paths = [output_dir / 'checkpoint.pth']
                 for checkpoint_path in checkpoint_paths:
@@ -355,15 +366,17 @@ def main(args):
                         'scaler': loss_scaler.state_dict(),
                         'args': args,
                     }, checkpoint_path)
-            
+
             if args.training_mode == 'SSL':
-                test_stats = evaluate_SSL(data_loader_val, model, device, epoch, args.output_dir)
+                test_stats = evaluate_SSL(st_lg, tb_lg, model, data_loader_val, device, epoch, tr_iters * epoch, va_iters, args.output_dir)
             else:
-                test_stats = evaluate_finetune(data_loader_val, model, device)
+                test_stats = evaluate_finetune(st_lg, tb_lg, model, data_loader_val, device, epoch, tr_iters * epoch, va_iters)
                 
                 print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
                 max_accuracy = max(max_accuracy, test_stats["acc1"])
                 print(f'Max accuracy: {max_accuracy:.2f}%')
+                tb_lg.add_scalars('finetune_va_ep/acc1', {'best': max_accuracy}, epoch)
+                tb_lg.add_scalars('finetune_va_it/acc1', {'best': max_accuracy}, tr_iters * epoch)
         
         log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
                      **{f'test_{k}': v for k, v in test_stats.items()},
@@ -379,13 +392,28 @@ def main(args):
     print('Training time {}'.format(total_time_str))
 
 
-if __name__ == '__main__':
+def dist_main():
     parser = argparse.ArgumentParser('SiT training and evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()
-    if args.output_dir:
-        Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     
-    if args.dataset_location:
-        Path(args.dataset_location).mkdir(parents=True, exist_ok=True)
+    sh_root = os.getcwd()
+    exp_root = os.path.join(sh_root, args.exp_dirname)
+    os.chdir(args.main_py_rel_path)
+    prj_root = os.getcwd()
+    os.chdir(sh_root)
     
-    main(args)
+    dist = TorchDistManager(args.exp_dirname, 'auto', 'auto')
+    lg, st_lg, tb_lg = create_loggers(prj_root, sh_root, exp_root, dist)
+    change_builtin_print(lg)
+    
+    args.distributed = True
+    args.world_size = dist.world_size
+    args.output_dir = exp_root
+    args.data_set = args.data_set.strip().lower()
+    args.dataset_location = os.path.join(os.path.expanduser('~'), 'datasets', args.data_set)
+    
+    main(args, dist, st_lg, tb_lg)
+
+
+if __name__ == '__main__':
+    dist_main()

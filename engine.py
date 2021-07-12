@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 import torch
+from tensorboardX import SummaryWriter
 
 from timm.data import Mixup
 from timm.utils import accuracy, ModelEma
@@ -22,6 +23,8 @@ import torch.nn.functional as F
 
 #FOR TESTING
 #torchvision.transforms.ToPILImage()(X_aug.clamp(-1, 1).sub(-1).div(max(2, 1e-5))).convert("RGB").show()
+from seatable import STLogger
+
 
 def drop_rand_patches(X, X_rep=None, max_drop=0.3, max_block_sz=0.25, tolr=0.05):
     #######################
@@ -111,17 +114,17 @@ def distortImages(samples):
     return samples_aug
 
 
-def train_SSL(model: torch.nn.Module, criterion,
+def train_SSL(st_lg: STLogger, tb_lg: SummaryWriter, model: torch.nn.Module, criterion,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
-                    device: torch.device, epoch: int, loss_scaler, max_norm: float = 0,
+                    device: torch.device, epoch: int, max_epoch: int, tr_iters: int, loss_scaler, max_norm: float = 0,
                     model_ema: Optional[ModelEma] = None, mixup_fn: Optional[Mixup] = None):
     model.train(True)
     metric_logger = utils.MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
-    print_freq = 50
+    lg_iters = max(round(tr_iters // 4), 1)
     i = 0
-    for imgs1, rots1, imgs2, rots2 in metric_logger.log_every(data_loader, print_freq, header):
+    for imgs1, rots1, imgs2, rots2 in metric_logger.log_every(data_loader, lg_iters, header):
         
         imgs1 = imgs1.to(device, non_blocking=True)
         imgs1_aug = distortImages(imgs1) # Apply distortion
@@ -158,13 +161,14 @@ def train_SSL(model: torch.nn.Module, criterion,
 
         # this attribute is added by timm on one optimizer (adahessian)
         is_second_order = hasattr(optimizer, 'is_second_order') and optimizer.is_second_order
-        loss_scaler(loss, optimizer, clip_grad=max_norm,
+        norm = loss_scaler(loss, optimizer, clip_grad=max_norm,
                     parameters=model.parameters(), create_graph=is_second_order)
 
         torch.cuda.synchronize()
         if model_ema is not None:
             model_ema.update(model)
 
+        cur_lr = optimizer.param_groups[0]["lr"]
         metric_logger.update(loss=loss_value)
         metric_logger.update(RotationLoss=loss1.data.item())
         metric_logger.update(RotationScalar=r_w.data.item())
@@ -172,7 +176,19 @@ def train_SSL(model: torch.nn.Module, criterion,
         metric_logger.update(ContrastiveScalar=cn_w.data.item())
         metric_logger.update(ReconstructionLoss=loss3.data.item())
         metric_logger.update(ReconstructionScalar=rec_w.data.item())
-        metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+        metric_logger.update(lr=cur_lr)
+        
+        it = tr_iters * epoch + i
+        if it % lg_iters == 0 or it == tr_iters * max_epoch - 1:
+            tb_lg.add_scalars('ssl_tr_opt/lr', {'sche': cur_lr, 'actu': cur_lr if norm is None else cur_lr * norm / max_norm}, it)
+            tb_lg.add_scalars('ssl_tr_opt/norm', {'original': -1 if norm is None else norm, 'clip__to': max_norm}, it)
+            tb_lg.add_scalars('ssl_tr_loss/tot_loss', {'mean': metric_logger.meters['loss'].median, 'last': loss_value}, it)
+            tb_lg.add_scalar('ssl_tr_loss/rot_loss', metric_logger.meters['RotationLoss'].median, it)
+            tb_lg.add_scalar('ssl_tr_loss/rot_scalar', metric_logger.meters['RotationScalar'].median, it)
+            tb_lg.add_scalar('ssl_tr_loss/ctr_loss', metric_logger.meters['ContrastiveLoss'].median, it)
+            tb_lg.add_scalar('ssl_tr_loss/ctr_scalar', metric_logger.meters['ContrastiveScalar'].median, it)
+            tb_lg.add_scalar('ssl_tr_loss/rec_loss', metric_logger.meters['ReconstructionLoss'].median, it)
+            tb_lg.add_scalar('ssl_tr_loss/rec_scalar', metric_logger.meters['ReconstructionScalar'].median, it)
         
         i = i + 1
     # gather the stats from all processes
@@ -181,17 +197,17 @@ def train_SSL(model: torch.nn.Module, criterion,
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
 
 
-
-def train_finetune(model: torch.nn.Module, criterion,
+def train_finetune(st_lg: STLogger, tb_lg: SummaryWriter, model: torch.nn.Module, criterion,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
-                    device: torch.device, epoch: int, loss_scaler, max_norm: float = 0,
+                    device: torch.device, epoch: int, max_epoch: int, tr_iters: int, loss_scaler, max_norm: float = 0,
                     model_ema: Optional[ModelEma] = None, mixup_fn: Optional[Mixup] = None):
     model.train(True)
     metric_logger = utils.MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
-    print_freq = 50
-    for images, targets in metric_logger.log_every(data_loader, print_freq, header):
+    lg_iters = max(round(tr_iters // 4), 1)
+    i = 0
+    for images, targets in metric_logger.log_every(data_loader, lg_iters, header):
         
         images = images.to(device, non_blocking=True)
         targets = targets.to(device, non_blocking=True)
@@ -213,15 +229,24 @@ def train_finetune(model: torch.nn.Module, criterion,
 
         # this attribute is added by timm on one optimizer (adahessian)
         is_second_order = hasattr(optimizer, 'is_second_order') and optimizer.is_second_order
-        loss_scaler(loss, optimizer, clip_grad=max_norm,
+        norm = loss_scaler(loss, optimizer, clip_grad=max_norm,
                     parameters=model.parameters(), create_graph=is_second_order)
 
         torch.cuda.synchronize()
         if model_ema is not None:
             model_ema.update(model)
 
+        cur_lr = optimizer.param_groups[0]["lr"]
         metric_logger.update(loss=loss_value)
-        metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+        metric_logger.update(lr=cur_lr)
+
+        it = tr_iters * epoch + i
+        if it % lg_iters == 0 or it == tr_iters * max_epoch - 1:
+            tb_lg.add_scalars('finetune_tr_opt/lr', {'sche': cur_lr, 'actu': cur_lr if norm is None else cur_lr * norm / max_norm}, it)
+            tb_lg.add_scalars('finetune_tr_opt/norm', {'original': -1 if norm is None else norm, 'clip__to': max_norm}, it)
+            tb_lg.add_scalars('finetune_tr_loss', {'mean': metric_logger.meters['loss'].median, 'last': loss_value}, it)
+        
+        i = i + 1
         
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
@@ -231,7 +256,7 @@ def train_finetune(model: torch.nn.Module, criterion,
 
 
 @torch.no_grad()
-def evaluate_SSL(data_loader, model, device, epoch, output_dir):
+def evaluate_SSL(st_lg: STLogger, tb_lg: SummaryWriter, model, data_loader, device, epoch, cur_iters, va_iters, output_dir):
     criterion = torch.nn.CrossEntropyLoss()
     metric_logger = utils.MetricLogger(delimiter="  ")
     header = 'Test:'
@@ -241,7 +266,7 @@ def evaluate_SSL(data_loader, model, device, epoch, output_dir):
     
     # switch to evaluation mode
     model.eval()
-    print_freq = 50
+    print_freq = max(round(va_iters // 3), 1)
     i = 0
     for imgs1, rots1, imgs2, rots2 in metric_logger.log_every(data_loader, print_freq, header):
         imgs1 = imgs1.to(device, non_blocking=True) 
@@ -288,19 +313,26 @@ def evaluate_SSL(data_loader, model, device, epoch, output_dir):
     print('* Acc@1 {top1.global_avg:.3f} Acc@5 {top5.global_avg:.3f} loss {losses.global_avg:.3f}'
           .format(top1=metric_logger.acc1, top5=metric_logger.acc5, losses=metric_logger.loss))
 
+    tb_lg.add_scalar('sst_va_ep/acc1', metric_logger.acc1, epoch)
+    tb_lg.add_scalar('sst_va_ep/acc5', metric_logger.acc5, epoch)
+    tb_lg.add_scalar('sst_va_ep/loss', metric_logger.loss, epoch)
+    
+    tb_lg.add_scalar('sst_va_it/acc1', metric_logger.acc1, cur_iters)
+    tb_lg.add_scalar('sst_va_it/acc5', metric_logger.acc5, cur_iters)
+    tb_lg.add_scalar('sst_va_it/loss', metric_logger.loss, cur_iters)
+    
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
 
 
-
 @torch.no_grad()
-def evaluate_finetune(data_loader, model, device):
+def evaluate_finetune(st_lg: STLogger, tb_lg: SummaryWriter, model, data_loader, device, epoch, cur_iters, va_iters):
     criterion = torch.nn.CrossEntropyLoss()
     metric_logger = utils.MetricLogger(delimiter="  ")
     header = 'Test:'
 
     # switch to evaluation mode
     model.eval()
-    print_freq = 50
+    print_freq = max(round(va_iters // 3), 1)
     for images, targets in metric_logger.log_every(data_loader, print_freq, header):
         images = images.to(device, non_blocking=True) 
         targets = targets.to(device, non_blocking=True)
@@ -322,6 +354,14 @@ def evaluate_finetune(data_loader, model, device):
     metric_logger.synchronize_between_processes()
     print('* Acc@1 {top1.global_avg:.3f} Acc@5 {top5.global_avg:.3f} loss {losses.global_avg:.3f}'
           .format(top1=metric_logger.acc1, top5=metric_logger.acc5, losses=metric_logger.loss))
+
+    tb_lg.add_scalar('finetune_va_ep/acc1', metric_logger.acc1, epoch)
+    tb_lg.add_scalar('finetune_va_ep/acc5', metric_logger.acc5, epoch)
+    tb_lg.add_scalar('finetune_va_ep/loss', metric_logger.loss, epoch)
+    
+    tb_lg.add_scalar('finetune_va_it/acc1', metric_logger.acc1, cur_iters)
+    tb_lg.add_scalar('finetune_va_it/acc5', metric_logger.acc5, cur_iters)
+    tb_lg.add_scalar('finetune_va_it/loss', metric_logger.loss, cur_iters)
 
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
 

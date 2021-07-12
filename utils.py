@@ -5,21 +5,126 @@ Misc functions, including distributed helpers.
 
 Mostly copy-paste from torchvision references.
 """
+import datetime
 import io
 import os
 import time
 from collections import defaultdict, deque
-import datetime
 
+import heapq
 import torch
-import torch.distributed as dist
+import torch.distributed as tdist
+
+
+def time_str():
+    return datetime.datetime.now().strftime('[%m-%d %H:%M:%S]')
+
+
+def master_echo(is_master, msg: str, color='33', tail=''):
+    if is_master:
+        os.system(f'echo -e "\033[{color}m{msg}\033[0m{tail}"')
+
+
+def get_bn(bn_mom):
+    def BN_func(*args, **kwargs):
+        kwargs.update({'momentum': bn_mom})
+        return nn.BatchNorm2d(*args, **kwargs)
+    
+    return BN_func
+
+
+class TopKHeap(list):
+    
+    def __init__(self, maxsize):
+        super(TopKHeap, self).__init__()
+        self.maxsize = maxsize
+        assert self.maxsize >= 1
+    
+    def push_q(self, x):
+        if len(self) < self.maxsize:
+            heapq.heappush(self, x)
+        elif x > self[0]:
+            heapq.heappushpop(self, x)
+    
+    def pop_q(self):
+        return heapq.heappop(self)
+    
+    def __repr__(self):
+        return str(sorted([x for x in self], reverse=True))
+
+
+class LossOpt:
+    state_dict_key = "amp_scaler"
+    
+    def __init__(self):
+        self._scaler = torch.cuda.amp.GradScaler()
+
+    def __call__(self, loss, optimizer, clip_grad=None, clip_mode='norm', parameters=None, create_graph=False):
+        self._scaler.scale(loss).backward(create_graph=create_graph)
+        if clip_grad is not None:
+            assert parameters is not None
+            self._scaler.unscale_(optimizer)  # unscale the gradients of optimizer's assigned params in-place
+            norm = torch.nn.utils.clip_grad_value_(parameters, clip_grad)
+        else:
+            norm = None
+        self._scaler.step(optimizer)
+        self._scaler.update()
+        return norm
+    
+    def state_dict(self):
+        return self._scaler.state_dict()
+    
+    def load_state_dict(self, state_dict):
+        self._scaler.load_state_dict(state_dict)
+        
+        
+class AverageMeter(object):
+    def __init__(self, length=0):
+        self.length = round(length)
+        if self.length > 0:
+            self.queuing = True
+            self.val_history = []
+            self.num_history = []
+        self.val_sum = 0.0
+        self.num_sum = 0.0
+        self.last = 0.0
+        self.avg = 0.0
+    
+    def reset(self):
+        if self.length > 0:
+            self.val_history.clear()
+            self.num_history.clear()
+        self.val_sum = 0.0
+        self.num_sum = 0.0
+        self.last = 0.0
+        self.avg = 0.0
+    
+    def update(self, val, num=1):
+        self.val_sum += val * num
+        self.num_sum += num
+        self.last = val / num
+        if self.queuing:
+            self.val_history.append(val)
+            self.num_history.append(num)
+            if len(self.val_history) > self.length:
+                self.val_sum -= self.val_history[0] * self.num_history[0]
+                self.num_sum -= self.num_history[0]
+                del self.val_history[0]
+                del self.num_history[0]
+        self.avg = self.val_sum / self.num_sum
+    
+    def time_preds(self, counts):
+        remain_secs = counts * self.avg
+        remain_time = datetime.timedelta(seconds=round(remain_secs))
+        finish_time = time.strftime("%m-%d %H:%M:%S", time.localtime(time.time() + remain_secs))
+        return remain_time, finish_time
 
 
 class SmoothedValue(object):
     """Track a series of values and provide access to smoothed values over a
     window or the global series average.
     """
-
+    
     def __init__(self, window_size=20, fmt=None):
         if fmt is None:
             fmt = "{median:.4f} ({global_avg:.4f})"
@@ -27,47 +132,47 @@ class SmoothedValue(object):
         self.total = 0.0
         self.count = 0
         self.fmt = fmt
-
+    
     def update(self, value, n=1):
         self.deque.append(value)
         self.count += n
         self.total += value * n
-
+    
     def synchronize_between_processes(self):
         """
         Warning: does not synchronize the deque!
         """
-        if not is_dist_avail_and_initialized():
-            return
+        # if not is_dist_avail_and_initialized():
+        #     return
         t = torch.tensor([self.count, self.total], dtype=torch.float64, device='cuda')
-        dist.barrier()
-        dist.all_reduce(t)
+        tdist.barrier()
+        tdist.all_reduce(t)
         t = t.tolist()
         self.count = int(t[0])
         self.total = t[1]
-
+    
     @property
     def median(self):
         d = torch.tensor(list(self.deque))
         return d.median().item()
-
+    
     @property
     def avg(self):
         d = torch.tensor(list(self.deque), dtype=torch.float32)
         return d.mean().item()
-
+    
     @property
     def global_avg(self):
         return self.total / self.count
-
+    
     @property
     def max(self):
         return max(self.deque)
-
+    
     @property
     def value(self):
         return self.deque[-1]
-
+    
     def __str__(self):
         return self.fmt.format(
             median=self.median,
@@ -81,14 +186,14 @@ class MetricLogger(object):
     def __init__(self, delimiter="\t"):
         self.meters = defaultdict(SmoothedValue)
         self.delimiter = delimiter
-
+    
     def update(self, **kwargs):
         for k, v in kwargs.items():
             if isinstance(v, torch.Tensor):
                 v = v.item()
             assert isinstance(v, (float, int))
             self.meters[k].update(v)
-
+    
     def __getattr__(self, attr):
         if attr in self.meters:
             return self.meters[attr]
@@ -96,7 +201,7 @@ class MetricLogger(object):
             return self.__dict__[attr]
         raise AttributeError("'{}' object has no attribute '{}'".format(
             type(self).__name__, attr))
-
+    
     def __str__(self):
         loss_str = []
         for name, meter in self.meters.items():
@@ -104,14 +209,14 @@ class MetricLogger(object):
                 "{}: {}".format(name, str(meter))
             )
         return self.delimiter.join(loss_str)
-
+    
     def synchronize_between_processes(self):
         for meter in self.meters.values():
             meter.synchronize_between_processes()
-
+    
     def add_meter(self, name, meter):
         self.meters[name] = meter
-
+    
     def log_every(self, iterable, print_freq, header=None):
         i = 0
         if not header:
@@ -169,39 +274,39 @@ def _load_checkpoint_for_ema(model_ema, checkpoint):
     model_ema._load_checkpoint(mem_file)
 
 
-def setup_for_distributed(is_master):
+def change_builtin_print(lg):
     """
     This function disables printing when not in master process
     """
     import builtins as __builtin__
-    builtin_print = __builtin__.print
+    
+    # builtin_print = __builtin__.print
+    # def print(*args, **kwargs):
+    #     force = kwargs.pop('force', False)
+    #     if is_master or force:
+    #         builtin_print(*args, **kwargs)
+    
+    __builtin__.print = lg.info
 
-    def print(*args, **kwargs):
-        force = kwargs.pop('force', False)
-        if is_master or force:
-            builtin_print(*args, **kwargs)
 
-    __builtin__.print = print
-
-
-def is_dist_avail_and_initialized():
-    if not dist.is_available():
-        return False
-    if not dist.is_initialized():
-        return False
-    return True
+# def is_dist_avail_and_initialized():
+#     if not dist.is_available():
+#         return False
+#     if not dist.is_initialized():
+#         return False
+#     return True
 
 
 def get_world_size():
-    if not is_dist_avail_and_initialized():
-        return 1
-    return dist.get_world_size()
+    # if not is_dist_avail_and_initialized():
+    #     return 1
+    return tdist.get_world_size()
 
 
 def get_rank():
-    if not is_dist_avail_and_initialized():
-        return 0
-    return dist.get_rank()
+    # if not is_dist_avail_and_initialized():
+    #     return 0
+    return tdist.get_rank()
 
 
 def is_main_process():
@@ -213,33 +318,7 @@ def save_on_master(*args, **kwargs):
         torch.save(*args, **kwargs)
 
 
-def init_distributed_mode(args):
-    if 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
-        args.rank = int(os.environ["RANK"])
-        args.world_size = int(os.environ['WORLD_SIZE'])
-        args.gpu = int(os.environ['LOCAL_RANK'])
-    elif 'SLURM_PROCID' in os.environ:
-        args.rank = int(os.environ['SLURM_PROCID'])
-        args.gpu = args.rank % torch.cuda.device_count()
-    else:
-        print('Not using distributed mode')
-        args.distributed = False
-        return
-
-    args.distributed = True
-
-    torch.cuda.set_device(args.gpu)
-    args.dist_backend = 'nccl'
-    print('| distributed init (rank {}): {}'.format(
-        args.rank, args.dist_url), flush=True)
-    torch.distributed.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
-                                         world_size=args.world_size, rank=args.rank)
-    torch.distributed.barrier()
-    setup_for_distributed(args.rank == 0)
-
-
 def print_args(args):
-    
     print('***********************************************')
     print('*', ' '.ljust(9), 'Training Mode is ', args.training_mode.ljust(15), '*')
     print('***********************************************')
@@ -257,4 +336,3 @@ def print_args(args):
     print('Learning Rate: ', args.lr)
     print('Weight Decay: ', args.weight_decay)
     print('Batchsize: ', args.batch_size)
-    
