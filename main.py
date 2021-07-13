@@ -409,6 +409,8 @@ def dist_main():
 
     change_builtin_print(lg, dist.is_master())
     
+    assert args.batch_size % dist.world_size == 0
+    args.batch_size //= dist.world_size
     args.distributed = True
     args.world_size = dist.world_size
     args.output_dir = exp_root

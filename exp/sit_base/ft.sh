@@ -10,7 +10,7 @@ spring.submit run -r --gpu -n$1 \
 --cpus-per-task=5 \
 --job-name "${DIR_NAME}" \
 "python -u -m main --main_py_rel_path=${REL_PATH} --exp_dirname=${EXP_DIR} \
---batch-size 120 \
+--batch-size 128 \
 --epochs 501 \
 --lr 5e-4 \
 --min-lr 5e-6 \
