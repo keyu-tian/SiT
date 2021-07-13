@@ -55,7 +55,7 @@ class TopKHeap(list):
         return str(sorted([x for x in self], reverse=True))
 
 
-class LossOpt:
+class AmpScaler:
     state_dict_key = "amp_scaler"
     
     def __init__(self):
@@ -69,7 +69,7 @@ class LossOpt:
             assert parameters is not None
             if self._scaler is not None:
                 self._scaler.unscale_(optimizer)  # unscale the gradients of optimizer's assigned params in-place
-            norm = torch.nn.utils.clip_grad_value_(parameters, clip_grad)
+            norm = float(torch.nn.utils.clip_grad_norm_(parameters, clip_grad))
         else:
             norm = None
         if self._scaler is not None:
@@ -80,10 +80,16 @@ class LossOpt:
         return norm
     
     def state_dict(self):
-        return self._scaler.state_dict()
+        if self._scaler is not None:
+            return self._scaler.state_dict()
+        else:
+            return {AmpScaler.state_dict_key: []}
     
     def load_state_dict(self, state_dict):
-        self._scaler.load_state_dict(state_dict)
+        if self._scaler is not None:
+            self._scaler.load_state_dict(state_dict)
+        else:
+            pass
         
         
 class AverageMeter(object):

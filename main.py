@@ -28,7 +28,7 @@ from models import vision_transformer_SiT   # SiT_base_patch16_224
 from models import swin_transformer         # SwinT_base_patch4_224
 
 import utils
-from utils import change_builtin_print, LossOpt
+from utils import change_builtin_print, AmpScaler
 
 
 def get_args_parser():
@@ -305,7 +305,7 @@ def main(args, dist, st_lg, tb_lg):
     linear_scaled_lr = args.lr * args.batch_size * utils.get_world_size() / 512.0
     args.lr = linear_scaled_lr
     optimizer = create_optimizer(args, model_without_ddp)
-    loss_scaler = LossOpt()
+    loss_scaler = AmpScaler()
     
     lr_scheduler, _ = create_scheduler(args, optimizer)
     

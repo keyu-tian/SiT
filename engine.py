@@ -191,6 +191,7 @@ def train_SSL(st_lg: STLogger, tb_lg: SummaryWriter, model: torch.nn.Module, cri
         metric_logger.update(ReconstructionLoss=loss3.data.item())
         metric_logger.update(ReconstructionScalar=rec_w.data.item())
         metric_logger.update(lr=cur_lr)
+        metric_logger.update(norm=norm)
         
         it = tr_iters * epoch + i
         if it % lg_iters == 0 or it == tr_iters * max_epoch - 1:
@@ -253,6 +254,7 @@ def train_finetune(st_lg: STLogger, tb_lg: SummaryWriter, model: torch.nn.Module
         cur_lr = optimizer.param_groups[0]["lr"]
         metric_logger.update(loss=loss_value)
         metric_logger.update(lr=cur_lr)
+        metric_logger.update(norm=norm)
 
         it = tr_iters * epoch + i
         if it % lg_iters == 0 or it == tr_iters * max_epoch - 1:
