@@ -74,8 +74,7 @@ class AmpScaler:
         # self._scaler.step(optimizer)
         # self._scaler.update()
         # return norm
-        
-        optimizer.step()
+        loss.backward()
         if clip_grad is not None:
             assert parameters is not None
             parameters = list(parameters)
@@ -85,6 +84,7 @@ class AmpScaler:
             norm = float(torch.nn.utils.clip_grad_norm_(parameters, clip_grad))
         else:
             norm = None
+        optimizer.step()
         return norm
     
     def state_dict(self):
