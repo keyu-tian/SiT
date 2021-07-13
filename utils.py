@@ -6,14 +6,16 @@ Misc functions, including distributed helpers.
 Mostly copy-paste from torchvision references.
 """
 import datetime
+import heapq
 import io
 import os
 import time
 from collections import defaultdict, deque
+from typing import List
 
-import heapq
 import torch
 import torch.distributed as tdist
+import torch.nn.functional as F
 
 
 def time_str():
