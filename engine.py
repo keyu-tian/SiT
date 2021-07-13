@@ -150,21 +150,19 @@ def train_SSL(st_lg: STLogger, tb_lg: SummaryWriter, model: torch.nn.Module, cri
         imgs2_aug = distortImages(imgs2)
         rots2 = rots2.to(device, non_blocking=True)
 
-
-        with torch.cuda.amp.autocast():
-            
-            rot1_p, contrastive1_p, imgs1_recon, r_w, cn_w, rec_w = model(imgs1_aug)
-            rot2_p, contrastive2_p, imgs2_recon, _, _, _ = model(imgs2_aug)
-            
-            rot_p = torch.cat([rot1_p, rot2_p], dim=0) 
-            rots = torch.cat([rots1, rots2], dim=0) 
-            
-            imgs_recon = torch.cat([imgs1_recon, imgs2_recon], dim=0) 
-            imgs = torch.cat([imgs1, imgs2], dim=0) 
-            
-            loss, (loss1, loss2, loss3) = criterion(rot_p, rots, 
-                                                        contrastive1_p, contrastive2_p, 
-                                                        imgs_recon, imgs, r_w, cn_w, rec_w)
+        # with torch.cuda.amp.autocast(): # todo: 关闭 amp 混合精度
+        rot1_p, contrastive1_p, imgs1_recon, r_w, cn_w, rec_w = model(imgs1_aug)
+        rot2_p, contrastive2_p, imgs2_recon, _, _, _ = model(imgs2_aug)
+        
+        rot_p = torch.cat([rot1_p, rot2_p], dim=0)
+        rots = torch.cat([rots1, rots2], dim=0)
+        
+        imgs_recon = torch.cat([imgs1_recon, imgs2_recon], dim=0)
+        imgs = torch.cat([imgs1, imgs2], dim=0)
+        
+        loss, (loss1, loss2, loss3) = criterion(rot_p, rots,
+                                                    contrastive1_p, contrastive2_p,
+                                                    imgs_recon, imgs, r_w, cn_w, rec_w)
             
 
         loss_value = loss.item()
@@ -231,9 +229,9 @@ def train_finetune(st_lg: STLogger, tb_lg: SummaryWriter, model: torch.nn.Module
         if mixup_fn is not None:
             images, targets = mixup_fn(images, targets)
 
-        with torch.cuda.amp.autocast():       
-            rot_p, contrastive_p = model(images)
-            loss = criterion(rot_p, targets) + criterion(contrastive_p, targets)
+        # with torch.cuda.amp.autocast(): # todo: 关闭 amp 混合精度
+        rot_p, contrastive_p = model(images)
+        loss = criterion(rot_p, targets) + criterion(contrastive_p, targets)
 
         loss_value = loss.item()
 
@@ -294,14 +292,14 @@ def evaluate_SSL(st_lg: STLogger, tb_lg: SummaryWriter, model, data_loader, devi
         rots2 = rots2.to(device, non_blocking=True)
 
         # compute output
-        with torch.cuda.amp.autocast():
-            rot1_p, contrastive1_p, imgs1_recon, r_w, cn_w, rec_w = model(imgs1_aug)
-            rot2_p, contrastive2_p, imgs2_recon, _, _, _ = model(imgs2_aug)
-            
-            rot_p = torch.cat([rot1_p, rot2_p], dim=0) 
-            rots = torch.cat([rots1, rots2], dim=0) 
-            
-            loss = criterion(rot_p, rots)
+        # with torch.cuda.amp.autocast(): # todo: 关闭 amp 混合精度
+        rot1_p, contrastive1_p, imgs1_recon, r_w, cn_w, rec_w = model(imgs1_aug)
+        rot2_p, contrastive2_p, imgs2_recon, _, _, _ = model(imgs2_aug)
+        
+        rot_p = torch.cat([rot1_p, rot2_p], dim=0)
+        rots = torch.cat([rots1, rots2], dim=0)
+        
+        loss = criterion(rot_p, rots)
 
         acc1, acc5 = accuracy(rot_p, rots, topk=(1, 4))
 
@@ -354,9 +352,9 @@ def evaluate_finetune(st_lg: STLogger, tb_lg: SummaryWriter, model, data_loader,
         targets = targets.to(device, non_blocking=True)
 
         # compute output
-        with torch.cuda.amp.autocast():
-            rot_p, contrastive_p = model(images)
-            loss = criterion(rot_p, targets) + criterion(contrastive_p, targets)
+        # with torch.cuda.amp.autocast(): # todo: 关闭 amp 混合精度
+        rot_p, contrastive_p = model(images)
+        loss = criterion(rot_p, targets) + criterion(contrastive_p, targets)
 
         acc1, acc5 = accuracy((rot_p+contrastive_p)/2., targets, topk=(1, 5))
 

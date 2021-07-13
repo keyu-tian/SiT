@@ -30,7 +30,7 @@ def master_echo(is_master, msg: str, color='33', tail=''):
 def get_bn(bn_mom):
     def BN_func(*args, **kwargs):
         kwargs.update({'momentum': bn_mom})
-        return nn.BatchNorm2d(*args, **kwargs)
+        return torch.nn.BatchNorm2d(*args, **kwargs)
     
     return BN_func
 
@@ -59,18 +59,24 @@ class LossOpt:
     state_dict_key = "amp_scaler"
     
     def __init__(self):
-        self._scaler = torch.cuda.amp.GradScaler()
+        # todo: 关闭 amp 自动精度 半精度
+        self._scaler = None # torch.cuda.amp.GradScaler()
 
     def __call__(self, loss, optimizer, clip_grad=None, clip_mode='norm', parameters=None, create_graph=False):
-        self._scaler.scale(loss).backward(create_graph=create_graph)
+        if self._scaler is not None:
+            self._scaler.scale(loss).backward(create_graph=create_graph)
         if clip_grad is not None:
             assert parameters is not None
-            self._scaler.unscale_(optimizer)  # unscale the gradients of optimizer's assigned params in-place
+            if self._scaler is not None:
+                self._scaler.unscale_(optimizer)  # unscale the gradients of optimizer's assigned params in-place
             norm = torch.nn.utils.clip_grad_value_(parameters, clip_grad)
         else:
             norm = None
-        self._scaler.step(optimizer)
-        self._scaler.update()
+        if self._scaler is not None:
+            self._scaler.step(optimizer)
+            self._scaler.update()
+        else:
+            optimizer.step()
         return norm
     
     def state_dict(self):
