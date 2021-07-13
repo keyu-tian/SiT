@@ -78,6 +78,7 @@ class AmpScaler:
         optimizer.step()
         if clip_grad is not None:
             assert parameters is not None
+            parameters = list(parameters)
             print(f'============== type(parameters): {type(parameters)}')
             print(f'============== len (parameters): {len(parameters)}')
             print(f'============== len (gard not N): {len([p for p in parameters if p.grad is not None])}')
