@@ -336,6 +336,7 @@ def SiT_base_patch16_224(
 
 
 if __name__ == '__main__':
-    sit = SiT_base_patch16_224(num_classes=1000)
+    sit = SiT_base_patch16_224(num_classes=10)
+    sit(torch.rand(1, 3, 224, 224))
     print(sum([p.numel() for p in sit.parameters()]) / 1e6)
 

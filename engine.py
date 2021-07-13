@@ -329,13 +329,13 @@ def evaluate_SSL(st_lg: STLogger, tb_lg: SummaryWriter, model, data_loader, devi
     print('* Acc@1 {top1.global_avg:.3f} Acc@5 {top5.global_avg:.3f} loss {losses.global_avg:.3f}'
           .format(top1=metric_logger.acc1, top5=metric_logger.acc5, losses=metric_logger.loss))
 
-    tb_lg.add_scalar('sst_va_ep/acc1', metric_logger.acc1, epoch)
-    tb_lg.add_scalar('sst_va_ep/acc5', metric_logger.acc5, epoch)
-    tb_lg.add_scalar('sst_va_ep/loss', metric_logger.loss, epoch)
+    tb_lg.add_scalar('sst_va_ep/acc1', metric_logger.acc1.median, epoch)
+    tb_lg.add_scalar('sst_va_ep/acc5', metric_logger.acc5.median, epoch)
+    tb_lg.add_scalar('sst_va_ep/loss', metric_logger.loss.median, epoch)
     
-    tb_lg.add_scalar('sst_va_it/acc1', metric_logger.acc1, cur_iters)
-    tb_lg.add_scalar('sst_va_it/acc5', metric_logger.acc5, cur_iters)
-    tb_lg.add_scalar('sst_va_it/loss', metric_logger.loss, cur_iters)
+    tb_lg.add_scalar('sst_va_it/acc1', metric_logger.acc1.median, cur_iters)
+    tb_lg.add_scalar('sst_va_it/acc5', metric_logger.acc5.median, cur_iters)
+    tb_lg.add_scalar('sst_va_it/loss', metric_logger.loss.median, cur_iters)
     
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
 
@@ -371,13 +371,13 @@ def evaluate_finetune(st_lg: STLogger, tb_lg: SummaryWriter, model, data_loader,
     print('* Acc@1 {top1.global_avg:.3f} Acc@5 {top5.global_avg:.3f} loss {losses.global_avg:.3f}'
           .format(top1=metric_logger.acc1, top5=metric_logger.acc5, losses=metric_logger.loss))
 
-    tb_lg.add_scalar('finetune_va_ep/acc1', metric_logger.acc1, epoch)
-    tb_lg.add_scalar('finetune_va_ep/acc5', metric_logger.acc5, epoch)
-    tb_lg.add_scalar('finetune_va_ep/loss', metric_logger.loss, epoch)
+    tb_lg.add_scalar('finetune_va_ep/acc1', metric_logger.acc1.median, epoch)
+    tb_lg.add_scalar('finetune_va_ep/acc5', metric_logger.acc5.median, epoch)
+    tb_lg.add_scalar('finetune_va_ep/loss', metric_logger.loss.median, epoch)
     
-    tb_lg.add_scalar('finetune_va_it/acc1', metric_logger.acc1, cur_iters)
-    tb_lg.add_scalar('finetune_va_it/acc5', metric_logger.acc5, cur_iters)
-    tb_lg.add_scalar('finetune_va_it/loss', metric_logger.loss, cur_iters)
+    tb_lg.add_scalar('finetune_va_it/acc1', metric_logger.acc1.median, cur_iters)
+    tb_lg.add_scalar('finetune_va_it/acc5', metric_logger.acc5.median, cur_iters)
+    tb_lg.add_scalar('finetune_va_it/loss', metric_logger.loss.median, cur_iters)
 
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
 

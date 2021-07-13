@@ -574,11 +574,15 @@ class SwinTransformer(nn.Module):
         x = self.patch_embed(x)
         if self.ape:
             x = x + self.absolute_pos_embed
+
+        rot_token = self.rot_token.expand(B, -1, -1)
+        contrastive_token = self.contrastive_token.expand(B, -1, -1)
+        x = torch.cat((rot_token, contrastive_token, x), dim=1)
+        
         x = self.pos_drop(x)
         
         for layer in self.layers:
             x = layer(x)
-        
         x = self.norm(x)  # B L C
         x = self.avgpool(x.transpose(1, 2))  # B C 1
         x = torch.flatten(x, 1)
@@ -586,6 +590,9 @@ class SwinTransformer(nn.Module):
     
     def forward(self, x):
         x = self.forward_features(x)
+        
+        print(x.shape)
+        
         x = self.head(x)
         return x
     
@@ -620,5 +627,6 @@ def SwinT_base_patch4_224(
 
 
 if __name__ == '__main__':
-    sw = SwinT_base_patch4_224(num_classes=1000)
+    sw = SwinT_base_patch4_224(num_classes=10)
+    sw(torch.rand(1, 3, 224, 224))
     print(sum([p.numel() for p in sw.parameters()]) / 1e6)
