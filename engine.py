@@ -2,7 +2,7 @@ import math
 import sys
 from pathlib import Path
 
-from typing import Iterable, Optional
+from typing import Iterable, Optional, List
 
 import torch
 from tensorboardX import SummaryWriter
@@ -15,7 +15,6 @@ import numpy as np
 import os
 import torchvision
 
-import kornia
 from numpy.random import randint
 
 import torch.nn.functional as F
@@ -24,6 +23,7 @@ import torch.nn.functional as F
 #FOR TESTING
 #torchvision.transforms.ToPILImage()(X_aug.clamp(-1, 1).sub(-1).div(max(2, 1e-5))).convert("RGB").show()
 from seatable import STLogger
+from utils import kornia_filter_2D
 
 
 def drop_rand_patches(X, X_rep=None, max_drop=0.3, max_block_sz=0.25, tolr=0.05):
@@ -75,7 +75,7 @@ def rgb2gray_patch(X, tolr=0.05):
     return X
     
 
-def smooth_patch(X, max_kernSz=15, gauss=5, tolr=0.05):
+def smooth_patch(X: torch.Tensor, max_kernSz=15, gauss=5, tolr=0.05):
 
     #get a random kernel size (odd number)
     kernSz = 2*(randint(3, max_kernSz+1)//2)+1
@@ -90,11 +90,27 @@ def smooth_patch(X, max_kernSz=15, gauss=5, tolr=0.05):
     rnd_h = min(randint(tolr[0], H)+rnd_r, H) #rnd_r is alread added - this is not height anymore
     rnd_w = min(randint(tolr[1], W)+rnd_c, W)
     
-    
-    gauss = kornia.filters.GaussianBlur2d((kernSz, kernSz), (gausFct, gausFct))
-    X[:, rnd_r:rnd_h, rnd_c:rnd_w] = gauss(X[:, rnd_r:rnd_h, rnd_c:rnd_w].unsqueeze(0))
+    def gau_1d(window_size, sigma):
+        x = torch.arange(window_size) - window_size // 2
+        if window_size % 2 == 0:
+            x = x + 0.5
+        gauss = torch.exp((-x.pow(2.0) / (2 * sigma ** 2)))
+        return gauss / gauss.sum()
+
+    ksize_x, ksize_y = kernSz, kernSz
+    sigma_x, sigma_y = gausFct, gausFct
+    kernel_x: torch.Tensor = gau_1d(ksize_x, sigma_x)
+    kernel_y: torch.Tensor = gau_1d(ksize_y, sigma_y)
+    kernel_2d: torch.Tensor = torch.matmul(
+        kernel_x.unsqueeze(-1), kernel_y.unsqueeze(-1).t()
+    )
+
+    ker = torch.unsqueeze(kernel_2d, dim=0).to(X.dtype).to(X.device)
+    gauss = kornia_filter_2D(X[:, rnd_r:rnd_h, rnd_c:rnd_w].unsqueeze(0), ker, 'reflect')
+    X[:, rnd_r:rnd_h, rnd_c:rnd_w] = gauss
     
     return X
+
 
 def distortImages(samples):
     n_imgs = samples.size()[0] #this is batch size, but in case bad inistance happened while loading

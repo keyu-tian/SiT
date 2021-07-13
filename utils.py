@@ -336,3 +336,37 @@ def print_args(args):
     print('Learning Rate: ', args.lr)
     print('Weight Decay: ', args.weight_decay)
     print('Batchsize: ', args.batch_size)
+
+
+def _compute_padding(kernel_size: List[int]) -> List[int]:
+    assert len(kernel_size) >= 2, kernel_size
+    computed = [k // 2 for k in kernel_size]
+    out_padding = 2 * len(kernel_size) * [0]
+    for i in range(len(kernel_size)):
+        computed_tmp = computed[-(i + 1)]
+        if kernel_size[i] % 2 == 0:
+            padding = computed_tmp - 1
+        else:
+            padding = computed_tmp
+        out_padding[2 * i + 0] = padding
+        out_padding[2 * i + 1] = computed_tmp
+    return out_padding
+
+
+def kornia_filter_2D(input, kernel, padding_mode):
+    b, c, h, w = input.shape
+    tmp_kernel: torch.Tensor = kernel.unsqueeze(1).to(input)
+    
+    tmp_kernel = tmp_kernel.expand(-1, c, -1, -1)
+    
+    # pad the input tensor
+    height, width = tmp_kernel.shape[-2:]
+    padding_shape: List[int] = _compute_padding([height, width])
+    input_pad: torch.Tensor = F.pad(input, padding_shape, mode=padding_mode)
+    
+    tmp_kernel = tmp_kernel.reshape(-1, 1, height, width)
+    input_pad = input_pad.view(-1, tmp_kernel.size(0), input_pad.size(-2), input_pad.size(-1))
+    
+    output = F.conv2d(input_pad, tmp_kernel, groups=tmp_kernel.size(0), padding=0, stride=1)
+    
+    return output.view(b, c, h, w)
