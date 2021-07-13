@@ -78,6 +78,9 @@ class AmpScaler:
         optimizer.step()
         if clip_grad is not None:
             assert parameters is not None
+            print(f'============== type(parameters): {type(parameters)}')
+            print(f'============== len (parameters): {len(parameters)}')
+            print(f'============== len (gard not N): {len([p for p in parameters if p.grad is not None])}')
             norm = float(torch.nn.utils.clip_grad_norm_(parameters, clip_grad))
         else:
             norm = None
