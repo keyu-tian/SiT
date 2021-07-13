@@ -59,24 +59,28 @@ class AmpScaler:
     state_dict_key = "amp_scaler"
     
     def __init__(self):
+        ...
         # todo: 关闭 amp 自动精度 半精度
-        self._scaler = None # torch.cuda.amp.GradScaler()
+        # self._scaler = None # torch.cuda.amp.GradScaler()
 
     def __call__(self, loss, optimizer, clip_grad=None, clip_mode='norm', parameters=None, create_graph=False):
-        if self._scaler is not None:
-            self._scaler.scale(loss).backward(create_graph=create_graph)
+        # self._scaler.scale(loss).backward(create_graph=create_graph)
+        # if clip_grad is not None:
+        #     assert parameters is not None
+        #     self._scaler.unscale_(optimizer)  # unscale the gradients of optimizer's assigned params in-place
+        #     norm = float(torch.nn.utils.clip_grad_norm_(parameters, clip_grad))
+        # else:
+        #     norm = None
+        # self._scaler.step(optimizer)
+        # self._scaler.update()
+        # return norm
+        
+        optimizer.step()
         if clip_grad is not None:
             assert parameters is not None
-            if self._scaler is not None:
-                self._scaler.unscale_(optimizer)  # unscale the gradients of optimizer's assigned params in-place
             norm = float(torch.nn.utils.clip_grad_norm_(parameters, clip_grad))
         else:
             norm = None
-        if self._scaler is not None:
-            self._scaler.step(optimizer)
-            self._scaler.update()
-        else:
-            optimizer.step()
         return norm
     
     def state_dict(self):
