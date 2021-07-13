@@ -64,7 +64,7 @@ def get_args_parser():
                         help='Optimizer Epsilon (default: 1e-8)')
     parser.add_argument('--opt-betas', default=None, type=float, nargs='+', metavar='BETA',
                         help='Optimizer Betas (default: None, use opt default)')
-    parser.add_argument('--clip-grad', type=float, default=4, metavar='NORM',
+    parser.add_argument('--clip-grad', type=float, default=3, metavar='NORM',
                         help='Clip gradient norm (default: None, no clipping)')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                         help='SGD momentum (default: 0.9)')
@@ -239,7 +239,8 @@ def main(args, dist, st_lg, tb_lg):
         args.model, pretrained=False, num_classes=args.nb_classes,
         # todo：根据以下kw的字段，添加swin的构造器参数，尤其注意最后一层变成MLP
         drop_rate=args.drop, drop_path_rate=args.drop_path, representation_size=args.representation_size,
-        drop_block_rate=None, training_mode=args.training_mode)
+        # drop_block_rate=None,
+        training_mode=args.training_mode)
     
     if args.finetune:
         checkpoint = torch.load(args.finetune, map_location='cpu')

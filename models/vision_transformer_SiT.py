@@ -314,15 +314,28 @@ def checkpoint_filter_fn(state_dict, model):
 
 
 @register_model
-def SiT_base_patch16_224(pretrained=False, **kwargs):
+def SiT_base_patch16_224(
+        num_classes,
+        pretrained=False,
+        drop_rate=0, drop_path_rate=0,
+        representation_size=None,
+        training_mode='SSL',
+        **kwargs
+):
     model = VisionTransformer_SiT(
+        num_classes=num_classes,
         patch_size=16, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, qkv_bias=True,
-        norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        drop_rate=drop_rate, drop_path_rate=drop_path_rate,
+        representation_size=representation_size,
+        training_mode=training_mode,
+        **kwargs
+    )
     model.default_cfg = _cfg()
     return model
 
 
 if __name__ == '__main__':
-    sit = SiT_base_patch16_224()
+    sit = SiT_base_patch16_224(num_classes=1000)
     print(sum([p.numel() for p in sit.parameters()]) / 1e6)
 

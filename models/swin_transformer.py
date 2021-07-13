@@ -495,11 +495,15 @@ class SwinTransformer(nn.Module):
                  window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
-                 use_checkpoint=False, norm_before_mlp='ln', **kwargs):
+                 use_checkpoint=False, norm_before_mlp='ln',
+                 representation_size=None,
+                 training_mode='SSL',
+                 **kwargs):
         super().__init__()
         
         self.num_classes = num_classes
         self.num_layers = len(depths)
+        self.training_mode = training_mode
         self.embed_dim = embed_dim
         self.ape = ape
         self.patch_norm = patch_norm
@@ -596,12 +600,25 @@ class SwinTransformer(nn.Module):
 
 
 @register_model
-def SwinT_base_patch4_224(pretrained=False, **kwargs):
+def SwinT_base_patch4_224(
+        num_classes,
+        pretrained=False,
+        drop_rate=0, drop_path_rate=0.1,
+        representation_size=None,
+        training_mode='SSL',
+        **kwargs
+):
     model = SwinTransformer(
-        embed_dim=96, depths=[2, 2, 6, 2], **kwargs)
+        num_classes=num_classes,
+        embed_dim=96, depths=[2, 2, 6, 2],
+        drop_rate=drop_rate, drop_path_rate=drop_path_rate,
+        representation_size=representation_size,
+        training_mode=training_mode,
+        **kwargs
+    )
     return model
 
 
 if __name__ == '__main__':
-    sw = SwinT_base_patch4_224()
+    sw = SwinT_base_patch4_224(num_classes=1000)
     print(sum([p.numel() for p in sw.parameters()]) / 1e6)

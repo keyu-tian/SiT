@@ -61,7 +61,7 @@ class AmpScaler:
     def __init__(self):
         ...
         # todo: 关闭 amp 自动精度 半精度
-        # self._scaler = None # torch.cuda.amp.GradScaler()
+        self._scaler = None # torch.cuda.amp.GradScaler()
 
     def __call__(self, loss, optimizer, clip_grad=None, clip_mode='norm', parameters=None, create_graph=False):
         # self._scaler.scale(loss).backward(create_graph=create_graph)
@@ -77,10 +77,6 @@ class AmpScaler:
         loss.backward()
         if clip_grad is not None:
             assert parameters is not None
-            # parameters = list(parameters)
-            # print(f'============== type(parameters): {type(parameters)}')
-            # print(f'============== len (parameters): {len(parameters)}')
-            # print(f'============== len (gard not N): {len([p for p in parameters if p.grad is not None])}')
             norm = float(torch.nn.utils.clip_grad_norm_(parameters, clip_grad))
         else:
             norm = None
