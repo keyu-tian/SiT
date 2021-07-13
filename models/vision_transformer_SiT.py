@@ -260,8 +260,9 @@ class VisionTransformer_SiT(nn.Module):
             return x_rot, x_contrastive
         
         x_rec = x[:, 2:].transpose(1, 2)
-        x_rec = self.convTrans(x_rec.unflatten(2, to_2tuple(int(math.sqrt(x_rec.size()[2])))))
-        
+        size = round(math.sqrt(x_rec.shape[2]))
+        unf = x_rec.reshape(x_rec.shape[0], x_rec.shape[1], size, size)
+        x_rec = self.convTrans(unf)
         return x_rot, x_contrastive, x_rec, self.rot_w, self.contrastive_w, self.recons_w
     
     def _init_vit_weights(self, m):
