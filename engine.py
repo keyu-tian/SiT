@@ -139,7 +139,7 @@ def train_SSL(st_lg: STLogger, tb_lg: SummaryWriter, model: torch.nn.Module, cri
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
     lg_iters = max(round(tr_iters // 4), 1)
-    tb_lg_iters = 10
+    tb_lg_iters = 8
     i = 0
     for imgs1, rots1, imgs2, rots2 in metric_logger.log_every(data_loader, lg_iters, header):
         
