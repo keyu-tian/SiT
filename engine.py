@@ -139,6 +139,7 @@ def train_SSL(st_lg: STLogger, tb_lg: SummaryWriter, model: torch.nn.Module, cri
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
     lg_iters = max(round(tr_iters // 4), 1)
+    tb_lg_iters = 10
     i = 0
     for imgs1, rots1, imgs2, rots2 in metric_logger.log_every(data_loader, lg_iters, header):
         
@@ -194,7 +195,7 @@ def train_SSL(st_lg: STLogger, tb_lg: SummaryWriter, model: torch.nn.Module, cri
         metric_logger.update(norm=norm)
         
         it = tr_iters * epoch + i
-        if it % lg_iters == 0 or it == tr_iters * max_epoch - 1:
+        if it % tb_lg_iters == 0 or it == tr_iters * max_epoch - 1:
             tb_lg.add_scalars('ssl_tr_opt/lr', {'sche': cur_lr, 'actu': cur_lr if norm is None else cur_lr * norm / max_norm}, it)
             tb_lg.add_scalars('ssl_tr_opt/norm', {'original': -1 if norm is None else norm, 'clip__to': max_norm}, it)
             tb_lg.add_scalars('ssl_tr_loss/tot_loss', {'mean': metric_logger.meters['loss'].median, 'last': loss_value}, it)
