@@ -11,8 +11,8 @@ spring.submit run --gpu -n$1 \
 --job-name "${DIR_NAME}" \
 "python -u -m main --main_py_rel_path=${REL_PATH} --exp_dirname=${EXP_DIR} \
 --batch-size 128 \
---epochs 5 \
---lr 1e-3 \
+--epochs 3 \
+--lr 2e-3 \
 --min-lr 5e-6 \
 --training-mode 'SSL' \
 --data-set 'stl10'"
