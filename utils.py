@@ -383,8 +383,8 @@ def kornia_filter_2D(input, kernel, padding_mode):
     input_pad: torch.Tensor = F.pad(input, padding_shape, mode=padding_mode)
     
     tmp_kernel = tmp_kernel.reshape(-1, 1, height, width)
-    input_pad = input_pad.view(-1, tmp_kernel.size(0), input_pad.size(-2), input_pad.size(-1))
+    input_pad = input_pad.view(-1, tmp_kernel.shape[0], input_pad.shape[-2], input_pad.shape[-1])
     
-    output = F.conv2d(input_pad, tmp_kernel, groups=tmp_kernel.size(0), padding=0, stride=1)
+    output = F.conv2d(input_pad, tmp_kernel, groups=tmp_kernel.shape[0], padding=0, stride=1)
     
     return output.view(b, c, h, w)

@@ -416,7 +416,7 @@ def dist_main():
     args.world_size = dist.world_size
     args.output_dir = exp_root
     args.data_set = args.data_set.strip().lower()
-    args.dataset_location = os.path.join(os.path.expanduser('~'), 'datasets', args.data_set)
+    args.dataset_location = os.path.join('datasets', args.data_set)
     
     try:
         main(args, dist, st_lg, tb_lg)
